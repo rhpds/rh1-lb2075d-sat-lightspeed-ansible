@@ -59,16 +59,18 @@ Intermediate
 
 ## Infrastructure Requirements
 
-- **Cloud provider:** TBD — confirmed in infrastructure phase
-- **Cluster type:** TBD — confirmed in infrastructure phase
-- **OCP version:** TBD — confirmed in infrastructure phase
-- **Topology:** TBD — confirmed in infrastructure phase
-- **Sizing:** TBD — confirmed in infrastructure phase
-- **Automation approach:** TBD — confirmed in infrastructure phase
-- **AI/MaaS:** TBD — confirmed in infrastructure phase
-- **External services:** TBD — confirmed in infrastructure phase
-- **AAP version:** TBD — confirmed in infrastructure phase
-- **Non-GA products:** TBD — confirmed in infrastructure phase
+- **Cloud provider:** CNV
+- **Platform:** RHEL VMs (no OCP cluster)
+- **Topology:** Per-student
+- **Sizing (per student):**
+  - 1 Satellite server — 8 vCPU, 32GB RAM, 540GB disk (RHEL, pre-built golden image with Satellite 6.19)
+  - 1 AAP server — 8 vCPU, 32GB RAM, 540GB disk (AAP 2.7 containerized, pre-built golden image)
+  - 2 RHEL managed nodes — 1 vCPU, 4GB RAM, 40GB disk each (RHEL 10.1)
+- **Automation approach:** Ansible
+- **AI/MaaS:** None (Lightspeed Vulnerability is served on-premises by Satellite)
+- **External services:** `registry.redhat.io`, `security.access.redhat.com`
+- **AAP version:** 2.7 (containerized)
+- **Non-GA products:** None (all products are GA)
 
 ## Assessment Strategy
 
