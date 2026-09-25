@@ -1,0 +1,13 @@
+site_name: 'Red Hat Satellite: Automated CVE Remediation with Lightspeed and AAP'
+docs_dir: publishing-house/spec
+nav:
+- Home: index.md
+- Design Spec: design.md
+- Modules:
+  - Module 1 - Introduction: modules/module-01-introduction.md
+  - Module 2 - Explore Detected Cves: modules/module-02-explore-detected-cves.md
+  - Module 3 - Configure Satellite Webhook: modules/module-03-configure-satellite-webhook.md
+  - Module 4 - Close The Loop: modules/module-04-close-the-loop.md
+  - Module 5 - Verify Closed Loop: modules/module-05-verify-closed-loop.md
+plugins:
+- techdocs-core
