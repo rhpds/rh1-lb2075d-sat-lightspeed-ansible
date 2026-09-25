@@ -106,8 +106,29 @@ approval_checklist:
         overview: "Participants review the vulnerability_remediation.py script and find_and_remediate.yml playbook, create a Satellite API credential in AAP Controller, set up the Controller Project and Job Template, and wire the EDA rulebook to launch the Job Template automatically on webhook receipt."
       - title: "Verify the Closed Loop"
         overview: "Participants trigger a remote execution job on rhel1.lab, watch AAP launch and complete the remediation Job Template, and confirm that patched OpenSSL versions appear on both hosts; they then run insights-client on both hosts to sync the updated package inventory back to Satellite's Vulnerability dashboard."
-    rcars_overlap_pct: null
-    rcars_top_matches: []
+    rcars_overlap_pct: 72
+    rcars_top_matches:
+      - title: "Hands on with Red Hat Lightspeed in Satellite"
+        ci_name: "zt-rhelbu.zt-lightspeed-satellite.prod"
+        url: "https://catalog.demo.redhat.com/catalog?item=zt-rhelbu.zt-lightspeed-satellite.prod"
+        relevance_score: 72
+        why_it_fits: "Covers Red Hat Lightspeed in Satellite (on-premises/disconnected mode), CVE identification and remediation playbook generation, and Ansible remediation playbooks across RHEL hosts."
+      - title: "Introduction to AI-Driven Ansible Automation: Self-healing, Observability-Driven AIOps"
+        ci_name: "published.ai-driven-aap.prod"
+        url: "https://catalog.demo.redhat.com/catalog?item=published.ai-driven-aap.prod"
+        relevance_score: 67
+        why_it_fits: "Section 4 covers Red Hat Lightspeed CVE and Advisor remediation alongside Event-Driven Ansible, and Section 5 addresses autonomous self-healing RHEL workflows — aligning closely with automated fleet-wide CVE detection and remediation."
+        workloads:
+          - role: "dispatch"
+            collection: "infra.aap_configuration"
+          - role: "lightspeed_mcp_server"
+            collection: "lb2961.ai_driven_aap"
+      - title: "Defend, Contain and Comply"
+        ci_name: "zt-ansiblebu.zt-ans-defend-contain-comply.prod"
+        url: "https://catalog.demo.redhat.com/catalog?item=zt-ansiblebu.zt-ans-defend-contain-comply.prod"
+        relevance_score: 55
+        why_it_fits: "Covers CVE detection and remediation using Event-Driven Ansible and AAP workflow automation against RHEL infrastructure, with a real Critical CVE scenario (CVSS 9.8) and EDA rulebooks driving automated response."
+    catalog_gap: "This design's unique position is the end-to-end on-premises pipeline: Satellite Lightspeed Vulnerability detects CVEs, a Satellite webhook triggers Event-Driven Ansible, and AAP Controller runs a fleet-wide remediation playbook — all without manual intervention and all within the lab network. No existing catalog item combines Satellite, on-premises Lightspeed Vulnerability, EDA webhook integration, and AAP Controller in a single guided intermediate lab."
     rejections: []
 
   infra:
