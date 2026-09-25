@@ -1,0 +1,90 @@
+:imagesdir: ../assets/images
+
+== Introduction
+
+This lab demonstrates proactive remediation. Red Hat Satellite Lightspeed vulnerability detects
+the CVEs affecting managed hosts. Ansible Automation Platform (AAP) then
+remediates them automatically, without manual intervention.
+
+The intention of this lab is to show you how all these components work together to automate the remediation of vulnerabilities, to respond quickly to increased pace of vulnerability discovery due to the proliferation of LLM models. Implementation details in this lab are sparse by design. The implementation of the end-to-end solution can be found in the https://github.com/rhpds/zt-satellite-lightspeed-ansible[README.md file of this repository^].
+
+Review this https://github.com/rhpds/zt-satellite-lightspeed-ansible/blob/fbd70f08b68e3712ba7e413dff873ea115e77d1f/docs/EDA_WEBHOOK_SETUP.md[documentation for architecture details^].
+
+This lab uses three components:
+
+- *Red Hat Satellite* manages the RHEL hosts. Through its on-premises
+  *Red Hat Lightspeed Vulnerability* service, it knows which CVEs affect
+  which host and which erratum fixes each one.
+- *Event-Driven Ansible (EDA)* receives events from Satellite. It
+  determines what to run in response.
+- *AAP Controller* runs the playbook that installs the fixed packages on
+  the affected hosts.
+
+All CVE data is synced into Satellite ahead of time and served by
+Satellite itself. No host inventory or package list leaves the lab
+network. The same configuration therefore works in a disconnected
+environment.
+
+A single successful remote execution job on one host triggers the loop.
+AAP then identifies every host affected by a CVE rated Critical or
+Important. It installs the discrete packages each host requires to remediate the CVE. This includes
+hosts that did not fire an event of their own.
+
+== Lab Environment
+
+The lab environment consists of the following
+
+- Red Hat Satellite Server *satellite.lab* (Satellite is preinstalled and content/software is synchronized.)
+- An Ansible Automation Platform server, *aap1.lab*.
+- Two Red Hat Enterprise Linux hosts, *rhel1.lab* and *rhel2.lab*.
+
+.Lab environment instances
+image::instances-diagram.png[]
+
+Over the course of this lab, you will:
+
+. Log into the Satellite and AAP Web UIs.
+. Explore the CVEs Satellite has detected on `rhel1.lab` and `rhel2.lab`
+  in the on-premises Red Hat Lightspeed Vulnerability dashboard.
+. Configure a Satellite webhook that calls AAP's EDA Event Stream
+  whenever a remote execution job succeeds on a host.
+. Extend the EDA rulebook so that event launches a Job Template. The Job
+  Template finds the remediable CVEs and installs the fixes.
+. Trigger the pipeline and confirm the vulnerable packages were patched
+  on both hosts, even though only one of them fired the event.
+
+Estimated time to complete: 1 hour.
+
+== Log into the Satellite and AAP Web UIs
+
+Start with the Red Hat Satellite Web User Interface (UI). Satellite is
+preinstalled. Its installation is out of scope for this lab.
+
+Click on the tab labelled Satellite Web UI as shown in the image below.
+
+.Satellite Web UI tab
+image::satellite-web-ui-tab.png[]
+
+Log into the Satellite Web UI with the following credentials. Copy and
+paste each of them below.
+
+[source,js]
+----
+admin
+----
+
+[source,js]
+----
+bc31c9a6-9ff0-11ec-9587-00155d1b0702
+----
+
+Now click `+Log In+`.
+
+You will be taken to the main dashboard.
+
+Next, *use the same credentials* to log into the AAP Web UI.
+
+The AAP Web UI appears once you are logged in. Proceed to the next module by clicking the `Next` button at the bottom of the page.
+
+.Next button
+image::next-button.png[]

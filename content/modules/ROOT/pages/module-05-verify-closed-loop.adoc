@@ -1,0 +1,329 @@
+:imagesdir: ../assets/images
+
+== Verify the Closed Loop
+
+Module 4 wired everything together. A successful Satellite webhook now
+launches an AAP Job Template that finds and remediates CVEs rated
+Critical or Important across *every* affected host, with zero manual
+intervention. This module proves it. Triggering the pipeline for real,
+with a job on `rhel1.lab`, fixes the vulnerable packages automatically
+on *both* `rhel1.lab` and `rhel2.lab`, even though only one host fired
+the webhook.
+
+Both managed hosts, `rhel1.lab` and `rhel2.lab`, are registered to
+Satellite and reporting in:
+
+.Managed hosts in Satellite
+image::hosts-registered.png[Satellite Hosts list showing rhel1.lab and rhel2.lab]
+
+======
+First, check the current (vulnerable) package versions.
+
+.Step 1 - Check the current (vulnerable) package versions
+[%collapsible]
+=====
+Check the versions of the packages that were deliberately left
+vulnerable during lab setup. Because the remediation is fleet-wide,
+check *both* hosts. On the `rhel1.lab terminal` tab:
+
+[source,bash,role="execute"]
+----
+rpm -q openssl openssl-libs gnutls tar
+----
+
+You should see the deliberately old versions seeded during lab setup:
+
+[source,text]
+----
+openssl-3.5.1-4.el10_1.x86_64
+openssl-libs-3.5.1-4.el10_1.x86_64
+gnutls-3.8.10-2.el10.x86_64
+tar-1.35-7.el10.x86_64
+----
+
+Then do the same on the `rhel2.lab terminal` tab:
+
+[source,bash,role="execute"]
+----
+rpm -q openssl openssl-libs gnutls tar
+----
+
+The OpenSSL versions match `rhel1.lab`. `gnutls` and `tar` are already
+current here, because lab setup only downgraded those two on `rhel1.lab`:
+
+[source,text]
+----
+openssl-3.5.1-4.el10_1.x86_64
+openssl-libs-3.5.1-4.el10_1.x86_64
+gnutls-3.8.10-3.el10_1.x86_64
+tar-1.35-9.el10_1.x86_64
+----
+
+Keep this output around to compare against later. The table below shows
+what the automation will do with these packages, and what it will leave
+alone. Recall from Module 4 that remediation is deliberately scoped to
+*Critical* and *Important* severity only:
+
+[cols="1,1,1,2",options="header"]
+|===
+| Package | Installed now | Upgraded to | Erratum that fixes it
+
+| `openssl`
+| `3.5.1-4.el10_1`
+| `3.5.1-7.el10_1`
+| RHSA-2026:1472 (*Important*)
+
+| `openssl-libs`
+| `3.5.1-4.el10_1`
+| `3.5.1-7.el10_1`
+| RHSA-2026:1472 (*Important*)
+
+| `gnutls`
+| `3.8.10-2.el10`
+| _unchanged_
+| RHSA-2026:3477 (Moderate)
+
+| `tar`
+| `1.35-7.el10`
+| _unchanged_
+| RHSA-2026:0002 (Moderate)
+|===
+
+Only the two OpenSSL packages move. Updates for `gnutls` and `tar` are
+sitting in Satellite as well, but their errata are *Moderate*. That is
+below the Critical/Important threshold this lab enforces, so the
+automation deliberately leaves them where they are. That is the policy
+doing its job, not a gap in the remediation.
+
+Satellite's own Vulnerability dashboard corroborates this. Under
+*Red Hat Lightspeed -> Vulnerability*, both hosts show up as affected by
+an OpenSSL flaw rated *Important* (`CVE-2025-15467`, CVSS 9.8), with
+*Systems Affected = 2*. That is one of the CVEs closed by
+RHSA-2026:1472, the erratum in the table above. It is exactly the kind
+of Critical or Important CVE this lab auto-remediates:
+
+.Vulnerability dashboard before remediation, showing one Important CVE affecting both hosts
+image::vulnerabilities-before-remediation.png[Vulnerability dashboard showing one Important-severity CVE affecting two systems]
+=====
+======
+
+======
+Next, trigger a remote execution job on Satellite. This is what fires the webhook.
+
+.Step 2 - Trigger a remote execution job on Satellite
+[%collapsible]
+=====
+On the `satellite.lab terminal` tab, trigger a remote execution job
+against `rhel1.lab`. This is the same kind of job Satellite runs for
+day-to-day administration. The only difference is that now, a
+*successful* run of one is exactly what fires the webhook:
+
+[source,bash,role="execute"]
+----
+hammer job-invocation create \
+  --job-template "Run Command - Ansible Default" \
+  --search-query "name = rhel1.lab" \
+  --inputs "command=echo trigger-remediation"
+----
+
+In the Satellite Web UI (*Monitor -> Jobs*), this job shows as succeeded
+against `rhel1.lab`. That *successful remote-execution job* is the event
+that fires the webhook into AAP. From here on, the whole loop runs on
+its own:
+
+.Satellite remote-execution job succeeded on rhel1.lab
+image::satellite-remediation-job-success.png[Satellite job invocation detail page showing the Run Command job succeeded on rhel1.lab]
+=====
+======
+
+======
+Now watch the Job Template it launches run to completion.
+
+.Step 3 - Watch the Job Template launch and finish
+[%collapsible]
+=====
+Back on `aap1.lab terminal`, watch for the "Vulnerability Package Finder
+and Remediator" Job Template to start and finish. The rulebook wired up
+in Module 4 launches it automatically:
+
+[source,bash,role="execute"]
+----
+export CTRL_API="https://localhost/api/controller/v2"
+export CTRL_AUTH="admin:bc31c9a6-9ff0-11ec-9587-00155d1b0702"
+
+for i in $(seq 1 30); do
+  JOB=$(curl -sk -u "$CTRL_AUTH" "$CTRL_API/jobs/?job_template__name=Vulnerability%20Package%20Finder%20and%20Remediator&order_by=-id&page_size=1" \
+    | python3 -c "import sys,json; r=json.load(sys.stdin)['results']; print(json.dumps(r[0]) if r else '')")
+  if [ -n "$JOB" ]; then
+    STATUS=$(echo "$JOB" | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
+    echo "status=$STATUS"
+    [ "$STATUS" = "successful" ] && break
+    [ "$STATUS" = "failed" ] && { echo "$JOB" | python3 -m json.tool; break; }
+  fi
+  sleep 3
+done
+JOB_ID=$(echo "$JOB" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+curl -sk -u "$CTRL_AUTH" "$CTRL_API/jobs/$JOB_ID/stdout/?format=txt" | tail -60
+----
+
+Here's what the output should look like:
+
+.Remediation output
+image::closed-loop-remediating.png[]
+
+
+[TIP]
+====
+If the job status shows `failed`, the `stdout` output above is the first
+place to look. Common causes are the Satellite API credential or URL
+(Module 4 Step 2), the Execution Environment not having `uv` (it was
+pre-built during lab setup, see Module 4 Step 1), and
+`vulnerability_remediation.py` not being present in the repo (Module 4
+Step 1). If the *scan* plays succeed but the *install* play fails with
+`Permission denied (publickey)`, the Machine credential is missing from
+the Job Template (Module 4 Step 3).
+====
+=====
+======
+
+======
+Finally, confirm the packages were actually remediated.
+
+.Step 4 - Confirm the packages were actually remediated
+[%collapsible]
+=====
+Check the same packages from Step 1 on *both* hosts. On the
+`rhel1.lab terminal` tab:
+
+[source,bash,role="execute"]
+----
+rpm -q openssl openssl-libs gnutls tar
+----
+
+And on the `rhel2.lab terminal` tab:
+
+[source,bash,role="execute"]
+----
+rpm -q openssl openssl-libs gnutls tar
+----
+
+Both hosts now report the patched OpenSSL:
+
+[source,text]
+----
+openssl-3.5.1-7.el10_1.x86_64
+openssl-libs-3.5.1-7.el10_1.x86_64
+----
+
+`openssl` and `openssl-libs` went from `3.5.1-4.el10_1` to
+`3.5.1-7.el10_1`. That is the build shipped in RHSA-2026:1472, the
+*Important* erratum that closes `CVE-2025-15467`. `gnutls` and `tar` are
+unchanged from Step 1 (`3.8.10-2.el10` and `1.35-7.el10` on
+`rhel1.lab`), because their pending errata are only *Moderate*:
+
+[cols="1,1,1,2",options="header"]
+|===
+| Package | Before | After | Result
+
+| `openssl`
+| `3.5.1-4.el10_1`
+| `3.5.1-7.el10_1`
+| Upgraded by RHSA-2026:1472 (*Important*)
+
+| `openssl-libs`
+| `3.5.1-4.el10_1`
+| `3.5.1-7.el10_1`
+| Upgraded by RHSA-2026:1472 (*Important*)
+
+| `gnutls`
+| `3.8.10-2.el10`
+| `3.8.10-2.el10`
+| Not remediated. Moderate, below threshold.
+
+| `tar`
+| `1.35-7.el10`
+| `1.35-7.el10`
+| Not remediated. Moderate, below threshold.
+|===
+
+OpenSSL versions that changed on *both* hosts confirm the entire loop is
+closed. Satellite fired a webhook for a job on `rhel1.lab` only. EDA
+validated and routed it. AAP launched a single job that found the
+applicable Critical and Important CVEs across the fleet via Red Hat
+Lightspeed. Ansible then installed the exact packages needed to fix them
+on *every* affected host, including `rhel2.lab`, which never fired a
+webhook of its own. None of it required manual intervention.
+
+Satellite's Vulnerability dashboard will not agree yet. The two views
+read from different places. `rpm -q` queries the local RPM database on
+each host, so it changes the instant the AAP job finishes. The dashboard
+reads Satellite's own copy of each host's package inventory, and nothing
+has told Satellite that the packages changed. AAP patched the hosts
+directly. It did not report back to Satellite.
+
+`insights-client` is what closes that gap. It collects the host's current
+package list, uploads it to Satellite, and Satellite re-runs its CVE
+matching against the new data. It already runs on a schedule, so the
+dashboard would catch up on its own eventually. Running it by hand makes
+that happen now.
+
+On the `rhel1.lab terminal` tab:
+
+[source,bash,role="execute"]
+----
+insights-client
+----
+
+Then on the `rhel2.lab terminal` tab:
+
+[source,bash,role="execute"]
+----
+insights-client
+----
+
+Run it on *both* hosts. The OpenSSL CVE showed *Systems Affected = 2*, so
+Satellite only clears it once both hosts have uploaded an updated package
+list. Refreshing only `rhel1.lab` leaves the CVE on the dashboard with
+*Systems Affected = 1*, which looks like a partial remediation but is
+really just stale inventory.
+
+Each run takes up to a minute. It prints its collection progress and
+finishes with a line confirming the upload succeeded. If it exits with an
+error instead, the dashboard will not update, so re-run it before moving
+on.
+
+Now reload the *Red Hat Lightspeed -> Vulnerability* dashboard. The CVE
+rated Important from Step 1 is gone. *CVEs with critical severity* and
+*CVEs with important severity* both read *0*, and the OpenSSL CVE that
+previously affected two systems no longer appears in the list.
+
+.Vulnerability dashboard after remediation, with no Critical or Important CVEs remaining
+image::vulnerabilities-after-remediation.png[Vulnerability dashboard showing zero Critical and zero Important CVEs after remediation]
+
+[NOTE]
+====
+If the CVE is still listed right after both uploads finish, wait a minute
+and reload again. The upload and Satellite's CVE re-match are separate
+steps, so the dashboard can lag slightly behind a successful
+`insights-client` run.
+====
+
+[NOTE]
+====
+The job's `PLAY RECAP` (Step 3) shows one line per affected host. A host
+that was already up to date shows `skipped`, meaning nothing to install.
+A host that needed patches shows `changed`. That is the fleet-wide sweep
+in action. Each host is remediated with exactly its own package set,
+independent of which host triggered the run.
+====
+
+=====
+======
+
+Every playbook and script this lab ran along the way, the webhook
+template, the webhook itself, the vulnerability finder, the remediation
+playbook, and the Controller/EDA wiring, is documented and available in
+the lab's own GitHub repo:
+https://github.com/rhpds/zt-satellite-lightspeed-ansible[https://github.com/rhpds/zt-satellite-lightspeed-ansible^].
+
+NOTE: You may be familiar with the errata view in Satellite as a means for remediating vulnerabilities. This feature is still available in Satellite. The difference between the two approaches to remediation is that the former presents a view via Red Hat Security Advisories (RHSA), Red Hat Bug Advisories (RHBA), and Red Hat Enhancement Advisories (RHEA). As we have seen in this lab, Lightspeed vulnerability presents a view via CVEs. You can learn more about the differences between the two approaches in the https://docs.redhat.com/en/documentation/red_hat_satellite/6.19/html/managing_hosts/patching-hosts-through-errata[Red Hat Satellite documentation^].

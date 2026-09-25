@@ -8,15 +8,29 @@ antora:
       label: "Introduction"
       solveButton: false
     - name: module-02
-      label: "Module 02"
+      label: "Explore Detected CVEs"
+      solveButton: false
+    - name: module-03
+      label: "Configure the Satellite Webhook"
+      solveButton: false
+    - name: module-04
+      label: "Close the Loop: Automatic Remediation"
+      solveButton: false
+    - name: module-05
+      label: "Verify the Closed Loop"
       solveButton: false
 
 tabs:
   - name: "Satellite Web UI"
     url: https://satellite-${guid}.${domain}/
     external: false
+  - name: "AAP Web UI"
+    url: https://aap1-${guid}.${domain}/
+    external: false
   - name: "satellite.lab terminal"
     url: /wetty_satellite/ssh/root
+  - name: "aap1.lab terminal"
+    url: /wetty_aap1/ssh/root
   - name: "rhel1.lab terminal"
     url: /wetty_rhel1/ssh/root
   - name: "rhel2.lab terminal"

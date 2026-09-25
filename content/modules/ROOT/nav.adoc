@@ -1,0 +1,5 @@
+* xref:module-01-introduction.adoc[Introduction]
+* xref:module-02-explore-detected-cves.adoc[Explore Detected CVEs]
+* xref:module-03-configure-satellite-webhook.adoc[Configure the Satellite Webhook]
+* xref:module-04-close-the-loop.adoc[Close the Loop: Automatic Remediation]
+* xref:module-05-verify-closed-loop.adoc[Verify the Closed Loop]

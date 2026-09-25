@@ -1,5 +1,0 @@
-:imagesdir: ../assets/images
-
-== Module 02
-
-TODO: Add content for module-02.
