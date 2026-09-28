@@ -4,12 +4,22 @@ lab:
   maintainer: "Matthew Yee (myee@redhat.com)"
 
   description:
-    summary: "This lab demonstrates the operation of the closed loop remediation process."
-    goal: "This lab demonstrates the operation of the closed loop remediation process."
+    summary: "Explore how Red Hat Satellite's on-premises Lightspeed Vulnerability service,
+      Event-Driven Ansible, and AAP Controller combine to automatically remediate CVEs
+      fleet-wide — triggered by a single event, no manual intervention required."
+    goal: "Configure a complete closed-loop CVE remediation pipeline: wire a Satellite
+      webhook to Event-Driven Ansible, extend an EDA rulebook to launch an AAP Job Template,
+      and verify that vulnerable packages are patched across all managed RHEL hosts."
     concepts:
      - "Satellite"
-    use_case: "This lab demonstrates the operation of the closed loop remediation process."
-    time_to_complete: "1 hour"
+     - "Event-Driven Ansible"
+     - "Ansible Automation Platform"
+     - "CVE Remediation"
+    use_case: "Security and operations teams need to patch CVEs quickly across large RHEL
+      fleets without manual coordination. This lab shows how to automate that process
+      end-to-end using Satellite, EDA, and AAP Controller — so a single job completion
+      event triggers remediation everywhere it's needed."
+    time_to_complete: "1 hour 30 minutes"
 
   git_ref:
     production: "main"
