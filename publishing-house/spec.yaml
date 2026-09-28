@@ -27,7 +27,7 @@ spec:
     - "Automate fleet-wide CVE remediation by wiring an EDA rulebook to launch an AAP Job Template that installs fixes across all affected hosts"
     - "Verify end-to-end closed-loop remediation by confirming that vulnerable packages are patched on both managed hosts after a single triggering event"
   modules:
-    - {id: module-01, title: Introduction, duration_min: 10, status: not_started}
+    - {id: module-01, title: Introduction, duration_min: 10, status: in_progress}
     - {id: module-02, title: "Explore Detected CVEs", duration_min: 20, status: not_started}
     - {id: module-03, title: "Configure the Satellite Webhook", duration_min: 20, status: not_started}
     - {id: module-04, title: "Close the Loop: Automatic Remediation", duration_min: 20, status: not_started}
