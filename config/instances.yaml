@@ -6,7 +6,7 @@ virtualmachines:
     register_satellite: false
     memory: "32G"
     cores: 8
-    image_size: "240Gi"
+    image_size: "340Gi"
     tags:
       - key: "AnsibleGroup"
         value: "bastions"
