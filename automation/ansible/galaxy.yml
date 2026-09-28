@@ -1,0 +1,10 @@
+---
+namespace: "rh1_lb2075d_sat_lightspeed_ansible"
+name: "automation"
+version: "1.0.0"
+readme: README.md
+authors:
+  - "myee111 psrivast@redhat.com"
+description: "Starter collection for this project's custom Ansible automation."
+license: []
+repository: "https://github.com/rhpds/rh1-lb2075d-sat-lightspeed-ansible"
