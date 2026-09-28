@@ -2,7 +2,7 @@
 site:
   title: "Red Hat Satellite Lab"
   url: https://github.com/rhpds/showroom_template_zero
-  start_page: modules::module-01-introduction.adoc
+  start_page: modules::index.adoc
 
 content:
   sources:
@@ -15,8 +15,13 @@ ui:
     snapshot: true
   supplemental_files: ./supplemental-ui
 
+antora:
+  extensions:
+    - require: /antora/lib/dev-mode.js
+      enabled: true
+
 output:
-  dir: ./www/www
+  dir: ./www
 
 runtime:
   cache_dir: ./.cache/antora

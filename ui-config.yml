@@ -22,16 +22,20 @@ antora:
 
 tabs:
   - name: "Satellite Web UI"
-    url: https://satellite-${guid}.${domain}/
+    url: https://satellite-${GUID}.${DOMAIN}/
     external: false
   - name: "AAP Web UI"
-    url: https://aap1-${guid}.${domain}/
+    url: https://aap1-${GUID}.${DOMAIN}/
     external: false
   - name: "satellite.lab terminal"
-    url: /wetty_satellite/ssh/root
+    path: /wetty_satellite/ssh/root
+    port: 443
   - name: "aap1.lab terminal"
-    url: /wetty_aap1/ssh/root
+    path: /wetty_aap1/ssh/root
+    port: 443
   - name: "rhel1.lab terminal"
-    url: /wetty_rhel1/ssh/root
+    path: /wetty_rhel1/ssh/root
+    port: 443
   - name: "rhel2.lab terminal"
-    url: /wetty_rhel2/ssh/root
+    path: /wetty_rhel2/ssh/root
+    port: 443

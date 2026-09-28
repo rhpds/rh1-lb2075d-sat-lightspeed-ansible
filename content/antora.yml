@@ -1,6 +1,14 @@
 ---
-
 name: modules
+title: "Red Hat Satellite: Automated CVE Remediation with Lightspeed and AAP"
 version: master
 nav:
   - modules/ROOT/nav.adoc
+
+asciidoc:
+  attributes:
+    experimental: true
+    page-pagination: true
+    guid: '%GUID%'
+    ssh_user: root
+    ssh_password: changeme
