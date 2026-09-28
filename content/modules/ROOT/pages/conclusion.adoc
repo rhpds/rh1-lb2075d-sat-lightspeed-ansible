@@ -1,0 +1,42 @@
+= Conclusion and Next Steps
+:imagesdir: ../assets/images
+
+You started with two managed RHEL hosts carrying known vulnerable packages and three independent components: Red Hat Satellite, Event-Driven Ansible, and AAP Controller. By the end of this lab, those components work as one closed loop. A single successful remote execution job on one host triggers a scan of every managed host and installs the exact packages each one needs, without further intervention.
+
+Both hosts now carry the patched OpenSSL build from RHSA-2026:1472. `gnutls` and `tar` are unchanged, because their pending errata are only Moderate — the remediation policy you configured stops at Critical and Important. That is the policy working correctly, not a gap.
+
+== What You've Learned
+
+By completing this lab, you can now:
+
+* Explore CVE data in the Red Hat Lightspeed Vulnerability dashboard hosted on-premises by Red Hat Satellite
+* Configure a Satellite webhook to send events to AAP's Event-Driven Ansible Event Stream on remote execution job success
+* Automate fleet-wide CVE remediation by wiring an EDA rulebook to launch an AAP Job Template that installs fixes across all affected hosts
+* Verify end-to-end closed-loop remediation by confirming that vulnerable packages are patched on both managed hosts after a single triggering event
+
+== Next Steps
+
+The pattern this lab demonstrates — detect, route, remediate, verify — applies beyond the specific CVEs used here. A few directions to take it further:
+
+* *Widen the remediation scope.* The `vulnerability_remediation.py` script defaults to Critical and Important only. Pass additional `--severity` values in `find_and_remediate.yml` to include Moderate. A broader policy remediates more, but also touches more packages per run, so review the tradeoffs first.
+* *Target specific CVEs.* The script supports a `--cve CVE-YYYY-NNNNN` argument to scope a single run to one CVE. Use this to write targeted remediations for zero-day CVEs as they land, without waiting for a full-fleet sweep.
+* *Change the trigger event.* This lab fires on any successful remote execution job. Real deployments often trigger on a recurring schedule, a newly registered host, or a content view promotion. Satellite exposes dozens of webhook event types — browse them in *Administer -> Webhooks -> New Webhook* to find the one that fits your workflow.
+* *Extend the EDA rulebook conditions.* The current rulebook fires on `condition: true`, meaning every webhook event triggers the Job Template. Add conditions to filter by host group, environment, or payload field before launching remediation, so the pipeline only acts when the event is actually relevant.
+* *Report back to Satellite automatically.* Running `insights-client` by hand in Module 5 closed the gap between the live RPM database and Satellite's Vulnerability dashboard. A post-remediation task in `find_and_remediate.yml` can run `insights-client` on each patched host automatically, eliminating that manual step.
+
+== References
+
+=== Lab Source Code
+
+* https://github.com/rhpds/zt-satellite-lightspeed-ansible[Lab repository — Red Hat Satellite: Automated CVE Remediation with Lightspeed and AAP^]
+* https://github.com/rhpds/zt-satellite-lightspeed-ansible/blob/8975dbe9d64379f217d4555188740e3d79037f56/README.md[README — `vulnerability_remediation.py` and `find_and_remediate.yml` walkthrough^]
+* https://github.com/rhpds/zt-satellite-lightspeed-ansible/blob/fbd70f08b68e3712ba7e413dff873ea115e77d1f/docs/EDA_WEBHOOK_SETUP.md[EDA Webhook Setup — architecture reference^]
+* https://github.com/rhpds/zt-satellite-lightspeed-ansible/blob/8975dbe9d64379f217d4555188740e3d79037f56/setup-automation/setup-satellite.sh#L77[Lab setup script — seeded vulnerable packages^]
+
+=== Product Documentation
+
+* https://docs.redhat.com/en/documentation/red_hat_satellite/6.19/html/managing_hosts/patching-hosts-through-errata[Red Hat Satellite — Patching Hosts Through Errata^]
+* https://docs.redhat.com/en/documentation/red_hat_satellite/6.19/html/administering_red_hat_satellite/using-webhooks_admin[Red Hat Satellite — Using Webhooks^]
+* https://docs.redhat.com/en/documentation/red_hat_ansible_automation_platform/2.5/html/event-driven_ansible_controller_user_guide/[Red Hat Ansible Automation Platform — Event-Driven Ansible Controller User Guide^]
+* https://docs.redhat.com/en/documentation/red_hat_ansible_automation_platform/2.5/html/event-driven_ansible_controller_user_guide/eda-event-streams[Event-Driven Ansible — Working with Event Streams^]
+* https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10/html/managing_and_monitoring_security_updates/[Red Hat Enterprise Linux — Managing and Monitoring Security Updates^]
