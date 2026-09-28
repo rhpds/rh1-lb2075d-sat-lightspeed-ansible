@@ -4,3 +4,4 @@
 * xref:module-03-configure-satellite-webhook.adoc[Configure the Satellite Webhook]
 * xref:module-04-close-the-loop.adoc[Close the Loop: Automatic Remediation]
 * xref:module-05-verify-closed-loop.adoc[Verify the Closed Loop]
+* xref:conclusion.adoc[Conclusion and Next Steps]
