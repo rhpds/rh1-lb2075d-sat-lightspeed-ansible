@@ -292,8 +292,12 @@ finishes with a line confirming the upload succeeded. If it exits with an
 error instead, the dashboard will not update, so re-run it before moving
 on.
 
-Now reload the *Red Hat Lightspeed -> Vulnerability* dashboard. The CVE
-rated Important from Step 1 is gone. *CVEs with critical severity* and
+Now reload the *Red Hat Lightspeed -> Vulnerability* dashboard.
+
+.Reload the Vulnerability dashboard
+image::reload-button.png[]
+
+The CVE that was rated Important from Step 1 is gone. *CVEs with critical severity* and
 *CVEs with important severity* both read *0*, and the OpenSSL CVE that
 previously affected two systems no longer appears in the list.
 
