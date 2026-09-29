@@ -19,7 +19,7 @@ lab:
       fleets without manual coordination. This lab shows how to automate that process
       end-to-end using Satellite, EDA, and AAP Controller — so a single job completion
       event triggers remediation everywhere it's needed."
-    time_to_complete: "1 hour 30 minutes"
+    time_to_complete: "30 minutes"
 
   git_ref:
     production: "main"
