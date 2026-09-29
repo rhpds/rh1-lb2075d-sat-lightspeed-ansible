@@ -53,7 +53,7 @@ Over the course of this lab, you will:
 . Trigger the pipeline and confirm the vulnerable packages were patched
   on both hosts, even though only one of them fired the event.
 
-Estimated time to complete: 1 hour.
+Estimated time to complete: 30 minutes.
 
 == Log into the Satellite and AAP Web UIs
 

@@ -39,13 +39,12 @@ Lab (hands-on)
 
 | Module | Title | Duration |
 |--------|-------|----------|
-| 1 | Introduction | 10 min |
-| 2 | Explore Detected CVEs | 20 min |
-| 3 | Configure the Satellite Webhook | 20 min |
-| 4 | Close the Loop: Automatic Remediation | 20 min |
-| 5 | Verify the Closed Loop | 15 min |
-| — | **Total hands-on** | **~85 min** |
-| — | **Total lab** | **~1.5 hours** |
+| 1 | Introduction | 3 min |
+| 2 | Explore Detected CVEs | 5 min |
+| 3 | Configure the Satellite Webhook | 8 min |
+| 4 | Close the Loop: Automatic Remediation | 8 min |
+| 5 | Verify the Closed Loop | 6 min |
+| — | **Total hands-on** | **~30 min** |
 
 ## Difficulty Level
 
