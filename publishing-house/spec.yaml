@@ -75,7 +75,7 @@ development:
     ansible:
       status: complete
   e2e:
-    status: complete
+    status: not_started
   healthCheck:
     status: in_progress
 
