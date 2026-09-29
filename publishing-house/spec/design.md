@@ -73,11 +73,11 @@ Intermediate
 
 ## Assessment Strategy
 
-This is a Zero-Touch Guided lab with runtime-automation solve/validate playbooks per module (`runtime-automation/module-*-*/`). Solve buttons are disabled in `ui-config.yml` (`solveButton: false`) — the student-facing experience is learner-driven via explicit commands and UI checks documented in each module.
-
-Each module ends with a visible, verifiable result:
+This is a Zero-Touch Guided lab. Each module ends with a visible, verifiable result:
 
 - Module 2: Participants observe CVE listings with severity ratings in the Lightspeed Vulnerability dashboard
 - Module 3: Participants run `verify-webhook.yml` which confirms the Event Stream received the webhook event (`events_received` counter and timestamp visible in playbook output)
 - Module 4: All playbooks exit cleanly; EDA Activation log shows the Job Template launched
 - Module 5: `rpm -q openssl openssl-libs` on both hosts shows the patched version (`3.5.1-7.el10_1`); the Vulnerability dashboard shows zero Critical/Important CVEs after `insights-client` runs on both hosts
+
+Verification is learner-driven via explicit commands and UI checks documented in each module. There are no automated solve/validate buttons.
