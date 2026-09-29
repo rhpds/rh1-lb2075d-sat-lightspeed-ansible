@@ -21,6 +21,7 @@
     loop:
       - rhel1
       - rhel2
+      - aap1
 
 - name: Demo Playbook for the ansible-runner API
   hosts: all:!localhost
@@ -70,6 +71,25 @@
         src: "./setup-{{ ansible_host }}.sh"
         dest: "/tmp/setup-scripts/setup-{{ ansible_host }}.sh"
       register: r_result
+
+    - name: Check if files directory exists
+      ansible.builtin.stat:
+        path: "./files-{{ config_host }}"
+      delegate_to: localhost
+      register: r_files_dir
+
+    - name: Create remote files directory
+      when: r_files_dir.stat.exists and r_files_dir.stat.isdir
+      ansible.builtin.file:
+        path: "/tmp/setup-scripts/files-{{ ansible_host }}/"
+        state: directory
+        mode: '0755'
+
+    - name: Copy files directory
+      when: r_files_dir.stat.exists and r_files_dir.stat.isdir
+      ansible.builtin.copy:
+        src: "./files-{{ ansible_host }}/"
+        dest: "/tmp/setup-scripts/files-{{ ansible_host }}/"
 
     - name: Execute module_stage-host.sh if it exists
       when: r_script_test.stat.exists
