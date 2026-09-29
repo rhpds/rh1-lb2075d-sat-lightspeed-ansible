@@ -1,7 +1,7 @@
 ---
 virtualmachines:
   - name: "satellite"
-    image: "satellite-server-rhdp-1-6-19-04-09-26-v2"
+    image: "satellite-server-rhdp"
     bootloader: efi
     register_satellite: false
     memory: "32G"
@@ -109,7 +109,7 @@ virtualmachines:
       prefer_fqdn_over_hostname: true
       manage_etc_hosts: true
   - name: "aap1"
-    image: "aap1-092126"
+    image: "aap1-092126-50g-image"
     bootloader: efi
     register_satellite: false
     memory: "32G"
