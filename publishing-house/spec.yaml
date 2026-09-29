@@ -27,11 +27,11 @@ spec:
     - "Automate fleet-wide CVE remediation by wiring an EDA rulebook to launch an AAP Job Template that installs fixes across all affected hosts"
     - "Verify end-to-end closed-loop remediation by confirming that vulnerable packages are patched on both managed hosts after a single triggering event"
   modules:
-    - {id: module-01, title: Introduction, duration_min: 10, status: complete}
-    - {id: module-02, title: "Explore Detected CVEs", duration_min: 20, status: complete}
-    - {id: module-03, title: "Configure the Satellite Webhook", duration_min: 20, status: complete}
-    - {id: module-04, title: "Close the Loop: Automatic Remediation", duration_min: 20, status: complete}
-    - {id: module-05, title: "Verify the Closed Loop", duration_min: 15, status: complete}
+    - {id: module-01-introduction, title: Introduction, duration_min: 10, status: complete, slug: module-01-introduction}
+    - {id: module-02-explore-detected-cves, title: "Explore Detected CVEs", duration_min: 20, status: complete, slug: module-02-explore-detected-cves}
+    - {id: module-03-configure-satellite-webhook, title: "Configure the Satellite Webhook", duration_min: 20, status: complete, slug: module-03-configure-satellite-webhook}
+    - {id: module-04-close-the-loop, title: "Close the Loop: Automatic Remediation", duration_min: 20, status: complete, slug: module-04-close-the-loop}
+    - {id: module-05-verify-closed-loop, title: "Verify the Closed Loop", duration_min: 15, status: complete, slug: module-05-verify-closed-loop}
   environment:
     platform: "rhel-vms"              # ocp | rhel-vms — determines which sizing fields apply
     topology: "per-student"    # shared-cluster | per-student | cnv-pool
@@ -92,7 +92,7 @@ approval_checklist:
 
   content:
     prerequisites_verifiable: false
-    assessment_strategy: ""
+    assessment_strategy: "Zero-Touch Guided lab with runtime-automation solve/validate playbooks per module (solve buttons disabled in ui-config.yml for student-driven experience). Each module ends with a visible, verifiable result: Module 2 — CVE listings in the Vulnerability dashboard; Module 3 — verify-webhook.yml confirms Event Stream received the webhook; Module 4 — all playbooks exit cleanly, EDA Activation log shows Job Template launched; Module 5 — rpm -q on both hosts shows patched OpenSSL (3.5.1-7.el10_1), Vulnerability dashboard shows zero Critical/Important CVEs after insights-client runs."
     catalog_gap: ""
     design_overview: "An intermediate hands-on lab showing how Red Hat Satellite's on-premises Lightspeed Vulnerability service, Event-Driven Ansible, and AAP Controller combine to automatically remediate CVEs fleet-wide with zero manual intervention. Participants wire up a Satellite webhook to EDA, extend a rulebook to launch a remediation Job Template, and verify that vulnerable packages are patched across all managed hosts after a single triggering event."
     module_summaries:
