@@ -12,96 +12,96 @@
 # payload would fail silently and Module 3 would hand the participant a
 # nonexistent playbook. Fail up front instead, before anything on this
 # host has been touched.
-# PAYLOAD_DIR=/tmp/setup-scripts/files-satellite
-# for _f in create-webhook-template.yml create-webhook.yml \
-#           satellite-remote-execution-host-job-json.erb; do
-#   if [ ! -s "$PAYLOAD_DIR/$_f" ]; then
-#     echo "==> SETUP-SATELLITE: FAILED - missing or empty payload $PAYLOAD_DIR/$_f" >&2
-#     exit 1
-#   fi
-# done
-# unset _f
+PAYLOAD_DIR=/tmp/setup-scripts/files-satellite
+for _f in create-webhook-template.yml create-webhook.yml \
+          satellite-remote-execution-host-job-json.erb; do
+  if [ ! -s "$PAYLOAD_DIR/$_f" ]; then
+    echo "==> SETUP-SATELLITE: FAILED - missing or empty payload $PAYLOAD_DIR/$_f" >&2
+    exit 1
+  fi
+done
+unset _f
 
-# # Those two playbooks use nothing beyond ansible.builtin, so ansible-core
-# # is the only requirement - no collections to install. Satellite's
-# # Ansible remote execution provider already pulls it in, so this is a
-# # no-op on a healthy box and a safety net on an older image.
-# if ! command -v ansible-playbook >/dev/null 2>&1; then
-#   echo "==> SETUP-SATELLITE: ansible-core missing, installing it"
-#   dnf install -y ansible-core
-# fi
+# Those two playbooks use nothing beyond ansible.builtin, so ansible-core
+# is the only requirement - no collections to install. Satellite's
+# Ansible remote execution provider already pulls it in, so this is a
+# no-op on a healthy box and a safety net on an older image.
+if ! command -v ansible-playbook >/dev/null 2>&1; then
+  echo "==> SETUP-SATELLITE: ansible-core missing, installing it"
+  dnf install -y ansible-core
+fi
 
-# # Unregister Satellite server from itself.
-# subscription-manager unregister
+# Unregister Satellite server from itself.
+subscription-manager unregister
 
-# # Delete Satellite from its inventory.
-# hammer host delete --name satellite.lab
+# Delete Satellite from its inventory.
+hammer host delete --name satellite.lab
 
-# # Delete the key this script creates below. `hammer activation-key
-# # create` rejects a duplicate name, so this keeps re-provisioning
-# # idempotent.
-# hammer activation-key delete --name "RHEL10" --organization "Acme Org" || true
+# Delete the key this script creates below. `hammer activation-key
+# create` rejects a duplicate name, so this keeps re-provisioning
+# idempotent.
+hammer activation-key delete --name "RHEL10" --organization "Acme Org" || true
 
-# # Module 3 creates these two. Its playbooks converge an existing object
-# # rather than failing on a duplicate name, so this is no longer required
-# # for idempotence - it is here to give every (re)provision the same
-# # clean slate, with no webhook left pointing at a previous lab's Event
-# # Stream. Delete the webhook first. It references the template.
-# hammer webhook delete --name "AAP Event Driven Ansible Webhook" || true
-# hammer webhook-template delete --name "Satellite Remote Execution Host Job JSON" || true
+# Module 3 creates these two. Its playbooks converge an existing object
+# rather than failing on a duplicate name, so this is no longer required
+# for idempotence - it is here to give every (re)provision the same
+# clean slate, with no webhook left pointing at a previous lab's Event
+# Stream. Delete the webhook first. It references the template.
+hammer webhook delete --name "AAP Event Driven Ansible Webhook" || true
+hammer webhook-template delete --name "Satellite Remote Execution Host Job JSON" || true
 
-# # Get the latest CVE map from Red Hat and copy it to the Foreman directory so that it can be used by the Foreman CVE plugin to determine which CVEs are applicable to the registered hosts.
-# curl -o cvemap.xml https://security.access.redhat.com/data/meta/v1/cvemap.xml
-# cp cvemap.xml /var/lib/foreman/
+# Get the latest CVE map from Red Hat and copy it to the Foreman directory so that it can be used by the Foreman CVE plugin to determine which CVEs are applicable to the registered hosts.
+curl -o cvemap.xml https://security.access.redhat.com/data/meta/v1/cvemap.xml
+cp cvemap.xml /var/lib/foreman/
 
-# # The rest of this script builds the lab environment. It registers the
-# # two RHEL hosts, installs the deliberately vulnerable packages, and
-# # uploads an initial insights report.
+# The rest of this script builds the lab environment. It registers the
+# two RHEL hosts, installs the deliberately vulnerable packages, and
+# uploads an initial insights report.
 
-# # Create an Activation Key for RHEL 10 content, which will be used by the RHEL 10 client system to register to Satellite and receive the RHEL 10 content.
-# hammer activation-key create --name "RHEL10" --organization "Acme Org" --lifecycle-environment "Library" --content-view "Default Organization View"
+# Create an Activation Key for RHEL 10 content, which will be used by the RHEL 10 client system to register to Satellite and receive the RHEL 10 content.
+hammer activation-key create --name "RHEL10" --organization "Acme Org" --lifecycle-environment "Library" --content-view "Default Organization View"
 
-# # Create a host registration script.
-# SAT_HOST_REGISTRATION_SCRIPT=$(hammer host-registration generate-command \
-#   --organization "Acme Org" \
-#   --location "Vancouver" \
-#   --activation-keys "RHEL10" \
-#   --insecure true \
-#   --force true \
-#   --setup-insights true \
-#   --setup-remote-execution true)
+# Create a host registration script.
+SAT_HOST_REGISTRATION_SCRIPT=$(hammer host-registration generate-command \
+  --organization "Acme Org" \
+  --location "Vancouver" \
+  --activation-keys "RHEL10" \
+  --insecure true \
+  --force true \
+  --setup-insights true \
+  --setup-remote-execution true)
 
-# ssh root@rhel1.lab bash -c "$SAT_HOST_REGISTRATION_SCRIPT"
-# ssh root@rhel2.lab bash -c "$SAT_HOST_REGISTRATION_SCRIPT"
+ssh root@rhel1.lab bash -c "$SAT_HOST_REGISTRATION_SCRIPT"
+ssh root@rhel2.lab bash -c "$SAT_HOST_REGISTRATION_SCRIPT"
 
-# # Trigger vulnerability - install packages with known CVEs
-# # openssl-3.5.1-4.el10_1 is vulnerable to RHSA-2026:1472 (CVE-2025-11187, CVE-2025-15467, CVE-2025-15468, CVE-2026-22795, CVE-2026-22796)
-# ssh root@rhel1.lab "dnf install -y openssl-3.5.1-4.el10_1 openssl-libs-3.5.1-4.el10_1 --allowerasing 2>/dev/null || true"
+# Trigger vulnerability - install packages with known CVEs
+# openssl-3.5.1-4.el10_1 is vulnerable to RHSA-2026:1472 (CVE-2025-11187, CVE-2025-15467, CVE-2025-15468, CVE-2026-22795, CVE-2026-22796)
+ssh root@rhel1.lab "dnf install -y openssl-3.5.1-4.el10_1 openssl-libs-3.5.1-4.el10_1 --allowerasing 2>/dev/null || true"
 
-# ssh root@rhel2.lab "dnf install -y openssl-3.5.1-4.el10_1 openssl-libs-3.5.1-4.el10_1 --allowerasing 2>/dev/null || true"
-# ssh root@rhel2.lab "dnf downgrade -y vim-minimal vim-common 2>/dev/null || true"
+ssh root@rhel2.lab "dnf install -y openssl-3.5.1-4.el10_1 openssl-libs-3.5.1-4.el10_1 --allowerasing 2>/dev/null || true"
+ssh root@rhel2.lab "dnf downgrade -y vim-minimal vim-common 2>/dev/null || true"
 
-# # Trigger vulnerability - downgrade packages with known CVEs
-# ssh root@rhel1.lab "dnf downgrade -y gnutls 2>/dev/null || true"
-# ssh root@rhel1.lab "dnf install -y tar-1.35-8.el10_1 --allowerasing 2>/dev/null || dnf downgrade -y tar 2>/dev/null || true"
+# Trigger vulnerability - downgrade packages with known CVEs
+ssh root@rhel1.lab "dnf downgrade -y gnutls 2>/dev/null || true"
+ssh root@rhel1.lab "dnf install -y tar-1.35-8.el10_1 --allowerasing 2>/dev/null || dnf downgrade -y tar 2>/dev/null || true"
 
-# # upload insights data
-# ssh root@rhel1.lab "insights-client"
-# ssh root@rhel2.lab "insights-client"
+# upload insights data
+ssh root@rhel1.lab "insights-client"
+ssh root@rhel2.lab "insights-client"
 
-# # Pre-populate the two playbooks Module 3 (Steps 1 and 2) walks the
-# # participant through running, the same way setup-aap1.sh does for
-# # Module 4. Both are self-contained and idempotent, so they don't depend
-# # on any shell variables from earlier steps in the participant's own
-# # terminal session. Writing them here removes the copy/paste risk of
-# # having the participant paste a heredoc that writes a helper script.
-# #
-# # No chmod +x on either: they are playbooks run via ansible-playbook,
-# # not executable scripts.
-# cp "$PAYLOAD_DIR/create-webhook-template.yml" /root/create-webhook-template.yml
-# cp "$PAYLOAD_DIR/create-webhook.yml" /root/create-webhook.yml
+# Pre-populate the two playbooks Module 3 (Steps 1 and 2) walks the
+# participant through running, the same way setup-aap1.sh does for
+# Module 4. Both are self-contained and idempotent, so they don't depend
+# on any shell variables from earlier steps in the participant's own
+# terminal session. Writing them here removes the copy/paste risk of
+# having the participant paste a heredoc that writes a helper script.
+#
+# No chmod +x on either: they are playbooks run via ansible-playbook,
+# not executable scripts.
+cp "$PAYLOAD_DIR/create-webhook-template.yml" /root/create-webhook-template.yml
+cp "$PAYLOAD_DIR/create-webhook.yml" /root/create-webhook.yml
 
-# # Not run directly. create-webhook-template.yml reads this and POSTs its
-# # contents to Satellite as the template body.
-# cp "$PAYLOAD_DIR/satellite-remote-execution-host-job-json.erb" \
-#    /root/satellite-remote-execution-host-job-json.erb
+# Not run directly. create-webhook-template.yml reads this and POSTs its
+# contents to Satellite as the template body.
+cp "$PAYLOAD_DIR/satellite-remote-execution-host-job-json.erb" \
+   /root/satellite-remote-execution-host-job-json.erb
