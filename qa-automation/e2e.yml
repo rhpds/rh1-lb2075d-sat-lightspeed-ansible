@@ -1,40 +1,374 @@
 ---
-# E2E — End-to-end test (migrated ZT Guided content)
-# Solves and validates every module in ui-config.yml order, reusing the
-# legacy runtime-automation shell scripts (solve-<host>.sh / validation-<host>.sh)
-# that a migrated repo already ships. Fails on the first broken module.
+# E2E — Solve and validate all modules (Satellite Lightspeed Ansible lab)
+# Replays every student action and validates the outcome for each module.
+# Designed for event readiness testing — generates real cluster load
+# (webhook creation, EDA wiring, CVE remediation).
+#
+# Module order:
+#   01-introduction → 02-explore-detected-cves →
+#   03-configure-satellite-webhook → 04-close-the-loop →
+#   05-verify-closed-loop
+#
+# Env vars injected by ZT runner:
+#   BASTION_HOST, BASTION_PORT, BASTION_USER, BASTION_PASSWORD
+#
+# Exit 0 = all modules pass, non-zero = first failure stops the run.
 
 - name: Build inventory
   hosts: localhost
   gather_facts: false
   tasks:
-    - name: Add bastion host
+    - name: Add satellite host (bastion)
       ansible.builtin.add_host:
-        name: "{{ lookup('ansible.builtin.env', 'BASTION_HOST') }}"
+        name: satellite
         ansible_ssh_host: "{{ lookup('ansible.builtin.env', 'BASTION_HOST') }}"
-        ansible_ssh_port: "{{ lookup('ansible.builtin.env', 'BASTION_PORT') }}"
+        ansible_ssh_port: "{{ lookup('ansible.builtin.env', 'BASTION_PORT') | default('22', true) }}"
         ansible_ssh_user: "{{ lookup('ansible.builtin.env', 'BASTION_USER') }}"
         ansible_ssh_pass: "{{ lookup('ansible.builtin.env', 'BASTION_PASSWORD') }}"
+        ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+        groups: satellite
 
-- name: E2E - solve and validate all modules
-  hosts: all:!localhost
+# ── Module 01: Introduction ──────────────────────────────────────────
+# Student action: log into Satellite and AAP Web UIs
+# Solve: no-op (UI login cannot be automated via Ansible)
+# Validate: Web UIs respond
+
+- name: "Module 01 - Validate: Satellite and AAP Web UIs"
+  hosts: satellite
   gather_facts: false
   become: true
-  vars:
-    runtime_path: "{{ playbook_dir }}/../runtime-automation"
-    _ui_config: "{{ lookup('file', playbook_dir ~ '/../ui-config.yml') | from_yaml }}"
-    modules_in_order: "{{ _ui_config.antora.modules | map(attribute='name') | list }}"
   tasks:
-    - name: "Run solve then validation for each module"
-      ansible.builtin.include_tasks: tasks/run_script.yml
-      loop: >-
-        {{
-          modules_in_order
-          | product(['solve', 'validation'])
-          | list
-        }}
-      loop_control:
-        loop_var: _module_stage
-      vars:
-        module_name: "{{ _module_stage[0] }}"
-        stage_name: "{{ _module_stage[1] }}"
+    - name: Verify Satellite Web UI is responding
+      ansible.builtin.uri:
+        url: https://localhost/users/login
+        validate_certs: false
+        status_code: [200, 302]
+      changed_when: false
+
+    - name: Verify Satellite API is responding (login with credentials)
+      ansible.builtin.uri:
+        url: https://localhost/api/v2/status
+        validate_certs: false
+        user: admin
+        password: "bc31c9a6-9ff0-11ec-9587-00155d1b0702"
+        force_basic_auth: true
+        status_code: 200
+      changed_when: false
+
+    - name: Verify AAP Web UI is reachable
+      ansible.builtin.command:
+        cmd: >-
+          curl -sk -o /dev/null -w '%{http_code}' --max-time 10
+          https://aap1.lab
+      register: _aap_status
+      changed_when: false
+      failed_when: _aap_status.stdout not in ['200', '301', '302', '401', '403']
+
+# ── Module 02: Explore Detected CVEs ────────────────────────────────
+# Student action: browse the Vulnerability dashboard in Satellite Web UI
+# Solve: no-op (UI browsing)
+# Validate: Satellite Vulnerability API returns CVEs
+
+- name: "Module 02 - Validate: Vulnerability data present"
+  hosts: satellite
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Query Satellite Vulnerability API for CVEs
+      ansible.builtin.command:
+        cmd: >-
+          curl -sk -u admin:bc31c9a6-9ff0-11ec-9587-00155d1b0702
+          https://localhost/api/v2/insights_cloud/cves?per_page=5
+      register: _cve_result
+      changed_when: false
+
+    - name: Parse CVE count
+      ansible.builtin.set_fact:
+        _cve_count: "{{ (_cve_result.stdout | from_json).total | default(0) }}"
+
+    - name: Verify CVEs are present in Satellite
+      ansible.builtin.assert:
+        that:
+          - (_cve_count | int) > 0
+        fail_msg: "No CVEs found in Satellite Vulnerability data (expected seeded vulnerabilities)"
+
+# ── Module 03: Configure the Satellite Webhook ──────────────────────
+# Student action: create webhook template, create webhook, trigger rex job,
+#   verify Event Stream received the event
+# Solve: replay the ansible-playbook commands and hammer invocation
+# Validate: webhook exists, Event Stream has events
+
+- name: "Module 03 - Solve: Create webhook template, webhook, and verify"
+  hosts: satellite
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Create the custom JSON webhook template
+      ansible.builtin.command:
+        cmd: ansible-playbook /root/create-webhook-template.yml
+      timeout: 120
+      register: _wh_template
+      changed_when: "'changed' in _wh_template.stdout"
+
+    - name: Create the webhook pointing at EDA Event Stream
+      ansible.builtin.command:
+        cmd: ansible-playbook /root/create-webhook.yml
+      timeout: 120
+      register: _wh_create
+      changed_when: "'changed' in _wh_create.stdout"
+
+    - name: Trigger a remote execution job to fire the webhook
+      ansible.builtin.command:
+        cmd: >-
+          hammer job-invocation create
+          --job-template "Run Command - Ansible Default"
+          --search-query "name = rhel1.lab"
+          --inputs "command=echo webhook-test"
+      timeout: 120
+
+    - name: Wait for webhook event to propagate
+      ansible.builtin.pause:
+        seconds: 15
+
+    - name: Verify webhook fired — check on aap1
+      ansible.builtin.command:
+        cmd: >-
+          ssh -o StrictHostKeyChecking=no root@aap1.lab
+          ansible-playbook /root/verify-webhook.yml
+      timeout: 120
+      register: _verify_wh
+      changed_when: false
+
+- name: "Module 03 - Validate: Webhook exists and Event Stream received events"
+  hosts: satellite
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Verify webhook is registered in Satellite
+      ansible.builtin.command:
+        cmd: hammer webhook list
+      register: _wh_list
+      changed_when: false
+      failed_when: _wh_list.stdout_lines | length < 2
+
+    - name: Verify Event Stream received events on aap1
+      ansible.builtin.shell:
+        cmd: >-
+          ssh -o StrictHostKeyChecking=no root@aap1.lab
+          'curl -sk -u admin:bc31c9a6-9ff0-11ec-9587-00155d1b0702
+          https://localhost/api/eda/v1/external-event-streams/
+          | python3 -c "import sys,json; streams=json.load(sys.stdin)[\"results\"];
+          total=sum(s.get(\"events_received\",0) for s in streams);
+          print(total)"'
+      register: _es_events
+      changed_when: false
+      failed_when: (_es_events.stdout | int) < 1
+
+# ── Module 04: Close the Loop ───────────────────────────────────────
+# Student action: create Satellite API credential, Controller Project/Job Template,
+#   wire rulebook to launch the Job Template
+# Solve: run the three setup playbooks on aap1
+# Validate: Job Template exists, EDA Activation running
+
+- name: "Module 04 - Solve: Wire Controller and EDA for remediation"
+  hosts: satellite
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Create the Satellite API credential in Controller
+      ansible.builtin.command:
+        cmd: >-
+          ssh -o StrictHostKeyChecking=no root@aap1.lab
+          ansible-playbook /root/create-satellite-credential.yml
+      timeout: 300
+      register: _sat_cred
+      changed_when: "'changed' in _sat_cred.stdout"
+
+    - name: Create the Controller Project and Job Template
+      ansible.builtin.command:
+        cmd: >-
+          ssh -o StrictHostKeyChecking=no root@aap1.lab
+          ansible-playbook /root/create-controller-project.yml
+      timeout: 300
+      register: _ctrl_proj
+      changed_when: "'changed' in _ctrl_proj.stdout"
+
+    - name: Wire the rulebook to launch the Job Template
+      ansible.builtin.command:
+        cmd: >-
+          ssh -o StrictHostKeyChecking=no root@aap1.lab
+          ansible-playbook /root/wire-rulebook.yml
+      timeout: 300
+      register: _wire_rb
+      changed_when: "'changed' in _wire_rb.stdout"
+
+    - name: Wait for EDA Activation to stabilize
+      ansible.builtin.pause:
+        seconds: 15
+
+- name: "Module 04 - Validate: Controller and EDA ready"
+  hosts: satellite
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Verify Job Template exists in Controller
+      ansible.builtin.shell:
+        cmd: >-
+          ssh -o StrictHostKeyChecking=no root@aap1.lab
+          'curl -sk -u admin:bc31c9a6-9ff0-11ec-9587-00155d1b0702
+          "https://localhost/api/controller/v2/job_templates/?name=Vulnerability+Package+Finder+and+Remediator"
+          | python3 -c "import sys,json; print(json.load(sys.stdin)[\"count\"])"'
+      register: _jt_count
+      changed_when: false
+      failed_when: (_jt_count.stdout | int) < 1
+
+    - name: Verify EDA Activation is running
+      ansible.builtin.shell:
+        cmd: >-
+          ssh -o StrictHostKeyChecking=no root@aap1.lab
+          'curl -sk -u admin:bc31c9a6-9ff0-11ec-9587-00155d1b0702
+          https://localhost/api/eda/v1/activations/?status=running
+          | python3 -c "import sys,json; print(json.load(sys.stdin)[\"count\"])"'
+      register: _eda_running
+      changed_when: false
+      failed_when: (_eda_running.stdout | int) < 1
+
+# ── Module 05: Verify the Closed Loop ───────────────────────────────
+# Student action: check vulnerable packages, trigger rex job, watch remediation
+#   Job Template run, verify packages upgraded, run insights-client
+# Solve: replay the full pipeline end-to-end
+# Validate: openssl upgraded on both hosts
+
+- name: "Module 05 - Solve: Trigger remediation pipeline"
+  hosts: satellite
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Record pre-remediation openssl on rhel1
+      ansible.builtin.command:
+        cmd: ssh -o StrictHostKeyChecking=no root@rhel1.lab rpm -q openssl openssl-libs
+      register: _pre_rhel1
+      changed_when: false
+
+    - name: Record pre-remediation openssl on rhel2
+      ansible.builtin.command:
+        cmd: ssh -o StrictHostKeyChecking=no root@rhel2.lab rpm -q openssl openssl-libs
+      register: _pre_rhel2
+      changed_when: false
+
+    - name: Log pre-remediation versions
+      ansible.builtin.debug:
+        msg:
+          - "rhel1 before: {{ _pre_rhel1.stdout_lines }}"
+          - "rhel2 before: {{ _pre_rhel2.stdout_lines }}"
+
+    - name: Trigger remote execution job to fire the webhook
+      ansible.builtin.command:
+        cmd: >-
+          hammer job-invocation create
+          --job-template "Run Command - Ansible Default"
+          --search-query "name = rhel1.lab"
+          --inputs "command=echo trigger-remediation"
+      timeout: 120
+
+    - name: Poll Controller for remediation job completion
+      ansible.builtin.shell:
+        cmd: |
+          ssh -o StrictHostKeyChecking=no root@aap1.lab /bin/bash <<'REMOTE_EOF'
+          set -e
+          export CTRL_API="https://localhost/api/controller/v2"
+          export CTRL_AUTH="admin:bc31c9a6-9ff0-11ec-9587-00155d1b0702"
+
+          JOB=""
+          for i in $(seq 1 60); do
+            JOB=$(curl -sk -u "$CTRL_AUTH" "$CTRL_API/jobs/?job_template__name=Vulnerability%20Package%20Finder%20and%20Remediator&order_by=-id&page_size=1" \
+              | python3 -c "import sys,json; r=json.load(sys.stdin)['results']; print(json.dumps(r[0]) if r else '')")
+            if [ -n "$JOB" ]; then
+              STATUS=$(echo "$JOB" | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
+              echo "status=$STATUS"
+              [ "$STATUS" = "successful" ] && break
+              [ "$STATUS" = "failed" ] && { echo "$JOB" | python3 -m json.tool; exit 1; }
+            fi
+            sleep 5
+          done
+          [ "$STATUS" = "successful" ] || { echo "Timed out waiting for job"; exit 1; }
+          JOB_ID=$(echo "$JOB" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+          curl -sk -u "$CTRL_AUTH" "$CTRL_API/jobs/$JOB_ID/stdout/?format=txt" | tail -60
+          REMOTE_EOF
+      timeout: 900
+      register: _remediation_result
+
+    - name: Show remediation output
+      ansible.builtin.debug:
+        msg: "{{ _remediation_result.stdout }}"
+
+    - name: Run insights-client on rhel1
+      ansible.builtin.command:
+        cmd: ssh -o StrictHostKeyChecking=no root@rhel1.lab insights-client
+      timeout: 180
+      register: _insights_rhel1
+      changed_when: "'Successfully uploaded' in _insights_rhel1.stdout"
+
+    - name: Run insights-client on rhel2
+      ansible.builtin.command:
+        cmd: ssh -o StrictHostKeyChecking=no root@rhel2.lab insights-client
+      timeout: 180
+      register: _insights_rhel2
+      changed_when: "'Successfully uploaded' in _insights_rhel2.stdout"
+
+- name: "Module 05 - Validate: Packages remediated and hosts registered"
+  hosts: satellite
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Verify openssl upgraded on rhel1
+      ansible.builtin.command:
+        cmd: ssh -o StrictHostKeyChecking=no root@rhel1.lab rpm -q openssl
+      register: _post_rhel1_openssl
+      changed_when: false
+      failed_when: "'3.5.1-7.el10_1' not in _post_rhel1_openssl.stdout"
+
+    - name: Verify openssl-libs upgraded on rhel1
+      ansible.builtin.command:
+        cmd: ssh -o StrictHostKeyChecking=no root@rhel1.lab rpm -q openssl-libs
+      register: _post_rhel1_libs
+      changed_when: false
+      failed_when: "'3.5.1-7.el10_1' not in _post_rhel1_libs.stdout"
+
+    - name: Verify openssl upgraded on rhel2
+      ansible.builtin.command:
+        cmd: ssh -o StrictHostKeyChecking=no root@rhel2.lab rpm -q openssl
+      register: _post_rhel2_openssl
+      changed_when: false
+      failed_when: "'3.5.1-7.el10_1' not in _post_rhel2_openssl.stdout"
+
+    - name: Verify openssl-libs upgraded on rhel2
+      ansible.builtin.command:
+        cmd: ssh -o StrictHostKeyChecking=no root@rhel2.lab rpm -q openssl-libs
+      register: _post_rhel2_libs
+      changed_when: false
+      failed_when: "'3.5.1-7.el10_1' not in _post_rhel2_libs.stdout"
+
+    - name: Log post-remediation versions
+      ansible.builtin.debug:
+        msg:
+          - "rhel1 openssl: {{ _post_rhel1_openssl.stdout }}"
+          - "rhel1 openssl-libs: {{ _post_rhel1_libs.stdout }}"
+          - "rhel2 openssl: {{ _post_rhel2_openssl.stdout }}"
+          - "rhel2 openssl-libs: {{ _post_rhel2_libs.stdout }}"
+
+    - name: Verify rhel1 is registered with insights
+      ansible.builtin.command:
+        cmd: ssh -o StrictHostKeyChecking=no root@rhel1.lab insights-client --status
+      register: _rhel1_insights
+      changed_when: false
+      failed_when: "'registered' not in _rhel1_insights.stdout | lower"
+      timeout: 30
+
+    - name: Verify rhel2 is registered with insights
+      ansible.builtin.command:
+        cmd: ssh -o StrictHostKeyChecking=no root@rhel2.lab insights-client --status
+      register: _rhel2_insights
+      changed_when: false
+      failed_when: "'registered' not in _rhel2_insights.stdout | lower"
+      timeout: 30

@@ -1,7 +1,13 @@
 ---
-# HEALTHCHECK — Quick environment readiness check (migrated ZT Guided content)
-# Verifies the bastion host is reachable via SSH. Non-destructive: does not
-# modify any lab state. Should complete in under 60 seconds.
+# HEALTHCHECK — Environment readiness for event use (Satellite Lightspeed Ansible lab)
+# Verifies satellite host is reachable, services are running, AAP/EDA pipeline
+# is ready, RHEL hosts are up, and vulnerable openssl baseline is present.
+#
+# Non-destructive: does not modify any lab state.
+# Should complete in under 60 seconds.
+#
+# Env vars injected by ZT runner:
+#   BASTION_HOST, BASTION_PORT, BASTION_USER, BASTION_PASSWORD
 #
 # Exit 0 = healthy, non-zero = unhealthy.
 
@@ -9,18 +15,85 @@
   hosts: localhost
   gather_facts: false
   tasks:
-    - name: Add bastion host
+    - name: Add satellite host (bastion)
       ansible.builtin.add_host:
-        name: "{{ lookup('ansible.builtin.env', 'BASTION_HOST') }}"
+        name: satellite
         ansible_ssh_host: "{{ lookup('ansible.builtin.env', 'BASTION_HOST') }}"
-        ansible_ssh_port: "{{ lookup('ansible.builtin.env', 'BASTION_PORT') }}"
+        ansible_ssh_port: "{{ lookup('ansible.builtin.env', 'BASTION_PORT') | default('22', true) }}"
         ansible_ssh_user: "{{ lookup('ansible.builtin.env', 'BASTION_USER') }}"
         ansible_ssh_pass: "{{ lookup('ansible.builtin.env', 'BASTION_PASSWORD') }}"
+        ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+        groups: satellite
 
-- name: Healthcheck
-  hosts: all:!localhost
+- name: Healthcheck - Satellite host
+  hosts: satellite
   gather_facts: false
-  become: false
+  become: true
   tasks:
     - name: Verify SSH connectivity
       ansible.builtin.ping:
+
+    - name: Verify Satellite services are running
+      ansible.builtin.command:
+        cmd: hammer ping
+      changed_when: false
+      timeout: 30
+
+    - name: Verify Satellite Web UI is responding
+      ansible.builtin.uri:
+        url: https://localhost/users/login
+        validate_certs: false
+        status_code: [200, 302]
+      changed_when: false
+
+    - name: Verify Satellite API is responding (login with credentials)
+      ansible.builtin.uri:
+        url: https://localhost/api/v2/status
+        validate_certs: false
+        user: admin
+        password: "bc31c9a6-9ff0-11ec-9587-00155d1b0702"
+        force_basic_auth: true
+        status_code: 200
+      changed_when: false
+
+    - name: Verify AAP Web UI is reachable from satellite
+      ansible.builtin.command:
+        cmd: >-
+          curl -sk -o /dev/null -w '%{http_code}' --max-time 10
+          https://aap1.lab
+      register: _aap_status
+      changed_when: false
+      failed_when: _aap_status.stdout not in ['200', '301', '302', '401', '403']
+
+    - name: Verify rhel1 is reachable from satellite
+      ansible.builtin.command: ping -c 1 -W 5 rhel1
+      changed_when: false
+
+    - name: Verify rhel2 is reachable from satellite
+      ansible.builtin.command: ping -c 1 -W 5 rhel2
+      changed_when: false
+
+    - name: Verify vulnerable openssl baseline on rhel1
+      ansible.builtin.command:
+        cmd: ssh -o StrictHostKeyChecking=no root@rhel1.lab rpm -q openssl
+      register: _rhel1_openssl
+      changed_when: false
+      failed_when: "'3.5.1-4.el10_1' not in _rhel1_openssl.stdout"
+
+    - name: Verify vulnerable openssl baseline on rhel2
+      ansible.builtin.command:
+        cmd: ssh -o StrictHostKeyChecking=no root@rhel2.lab rpm -q openssl
+      register: _rhel2_openssl
+      changed_when: false
+      failed_when: "'3.5.1-4.el10_1' not in _rhel2_openssl.stdout"
+
+    - name: Verify EDA Activation is running on aap1
+      ansible.builtin.shell:
+        cmd: >-
+          ssh -o StrictHostKeyChecking=no root@aap1.lab
+          'curl -sk -u admin:bc31c9a6-9ff0-11ec-9587-00155d1b0702
+          https://localhost/api/eda/v1/activations/?status=running
+          | python3 -c "import sys,json; r=json.load(sys.stdin); print(r[\"count\"])"'
+      register: _eda_count
+      changed_when: false
+      failed_when: (_eda_count.stdout | int) < 1
