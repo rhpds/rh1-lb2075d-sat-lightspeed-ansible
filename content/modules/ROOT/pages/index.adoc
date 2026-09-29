@@ -42,25 +42,25 @@ The same configuration works in a disconnected environment.
 
 | 1
 | Introduction
-| 10 minutes
+| 3 minutes
 
 | 2
 | Explore Detected CVEs
-| 20 minutes
+| 5 minutes
 
 | 3
 | Configure the Satellite Webhook
-| 20 minutes
+| 8 minutes
 
 | 4
 | Close the Loop: Automatic Remediation
-| 20 minutes
+| 8 minutes
 
 | 5
 | Verify the Closed Loop
-| 15 minutes
+| 6 minutes
 |===
 
-*Estimated total time: 1 hour 30 minutes*
+*Estimated total time: 30 minutes*
 
 Click *Next* to begin with the Introduction.
