@@ -174,16 +174,23 @@
 
     - name: Verify Event Stream received events on aap1
       ansible.builtin.shell:
-        cmd: >-
-          ssh -o StrictHostKeyChecking=no root@aap1.lab
-          'curl -sk -u admin:bc31c9a6-9ff0-11ec-9587-00155d1b0702
-          https://localhost/api/eda/v1/external-event-streams/
-          | python3 -c "import sys,json; streams=json.load(sys.stdin)[\"results\"];
-          total=sum(s.get(\"events_received\",0) for s in streams);
-          print(total)"'
+        cmd: |
+          ssh -o StrictHostKeyChecking=no root@aap1.lab /bin/bash <<'REMOTE_EOF'
+          set -e
+          AUTH="admin:bc31c9a6-9ff0-11ec-9587-00155d1b0702"
+          RESP=$(curl -sk -u "$AUTH" -w '\n%{http_code}' https://localhost/api/eda/v1/event-streams/)
+          HTTP_CODE=$(echo "$RESP" | tail -1)
+          BODY=$(echo "$RESP" | sed '$d')
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "EDA event-streams API returned HTTP $HTTP_CODE" >&2
+            exit 1
+          fi
+          TOTAL=$(echo "$BODY" | python3 -c "import sys,json; streams=json.load(sys.stdin)['results']; print(sum(s.get('events_received',0) for s in streams))")
+          echo "$TOTAL"
+          REMOTE_EOF
       register: _es_events
       changed_when: false
-      failed_when: (_es_events.stdout | int) < 1
+      failed_when: (_es_events.stdout | trim | int) < 1
 
 # ── Module 04: Close the Loop ───────────────────────────────────────
 # Student action: create Satellite API credential, Controller Project/Job Template,
@@ -234,25 +241,43 @@
   tasks:
     - name: Verify Job Template exists in Controller
       ansible.builtin.shell:
-        cmd: >-
-          ssh -o StrictHostKeyChecking=no root@aap1.lab
-          'curl -sk -u admin:bc31c9a6-9ff0-11ec-9587-00155d1b0702
-          "https://localhost/api/controller/v2/job_templates/?name=Vulnerability+Package+Finder+and+Remediator"
-          | python3 -c "import sys,json; print(json.load(sys.stdin)[\"count\"])"'
+        cmd: |
+          ssh -o StrictHostKeyChecking=no root@aap1.lab /bin/bash <<'REMOTE_EOF'
+          set -e
+          AUTH="admin:bc31c9a6-9ff0-11ec-9587-00155d1b0702"
+          RESP=$(curl -sk -u "$AUTH" -w '\n%{http_code}' "https://localhost/api/controller/v2/job_templates/?name=Vulnerability+Package+Finder+and+Remediator")
+          HTTP_CODE=$(echo "$RESP" | tail -1)
+          BODY=$(echo "$RESP" | sed '$d')
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Controller job_templates API returned HTTP $HTTP_CODE" >&2
+            exit 1
+          fi
+          COUNT=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin)['count'])")
+          echo "$COUNT"
+          REMOTE_EOF
       register: _jt_count
       changed_when: false
-      failed_when: (_jt_count.stdout | int) < 1
+      failed_when: (_jt_count.stdout | trim | int) < 1
 
     - name: Verify EDA Activation is running
       ansible.builtin.shell:
-        cmd: >-
-          ssh -o StrictHostKeyChecking=no root@aap1.lab
-          'curl -sk -u admin:bc31c9a6-9ff0-11ec-9587-00155d1b0702
-          https://localhost/api/eda/v1/activations/?status=running
-          | python3 -c "import sys,json; print(json.load(sys.stdin)[\"count\"])"'
+        cmd: |
+          ssh -o StrictHostKeyChecking=no root@aap1.lab /bin/bash <<'REMOTE_EOF'
+          set -e
+          AUTH="admin:bc31c9a6-9ff0-11ec-9587-00155d1b0702"
+          RESP=$(curl -sk -u "$AUTH" -w '\n%{http_code}' https://localhost/api/eda/v1/activations/?status=running)
+          HTTP_CODE=$(echo "$RESP" | tail -1)
+          BODY=$(echo "$RESP" | sed '$d')
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "EDA activations API returned HTTP $HTTP_CODE" >&2
+            exit 1
+          fi
+          COUNT=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin)['count'])")
+          echo "$COUNT"
+          REMOTE_EOF
       register: _eda_running
       changed_when: false
-      failed_when: (_eda_running.stdout | int) < 1
+      failed_when: (_eda_running.stdout | trim | int) < 1
 
 # ── Module 05: Verify the Closed Loop ───────────────────────────────
 # Student action: check vulnerable packages, trigger rex job, watch remediation
@@ -297,13 +322,21 @@
         cmd: |
           ssh -o StrictHostKeyChecking=no root@aap1.lab /bin/bash <<'REMOTE_EOF'
           set -e
-          export CTRL_API="https://localhost/api/controller/v2"
-          export CTRL_AUTH="admin:bc31c9a6-9ff0-11ec-9587-00155d1b0702"
+          CTRL_API="https://localhost/api/controller/v2"
+          AUTH="admin:bc31c9a6-9ff0-11ec-9587-00155d1b0702"
 
           JOB=""
+          STATUS=""
           for i in $(seq 1 60); do
-            JOB=$(curl -sk -u "$CTRL_AUTH" "$CTRL_API/jobs/?job_template__name=Vulnerability%20Package%20Finder%20and%20Remediator&order_by=-id&page_size=1" \
-              | python3 -c "import sys,json; r=json.load(sys.stdin)['results']; print(json.dumps(r[0]) if r else '')")
+            RESP=$(curl -sk -u "$AUTH" -w '\n%{http_code}' "$CTRL_API/jobs/?job_template__name=Vulnerability%20Package%20Finder%20and%20Remediator&order_by=-id&page_size=1")
+            HTTP_CODE=$(echo "$RESP" | tail -1)
+            BODY=$(echo "$RESP" | sed '$d')
+            if [ "$HTTP_CODE" != "200" ]; then
+              echo "Controller jobs API returned HTTP $HTTP_CODE, retrying..." >&2
+              sleep 5
+              continue
+            fi
+            JOB=$(echo "$BODY" | python3 -c "import sys,json; r=json.load(sys.stdin)['results']; print(json.dumps(r[0]) if r else '')")
             if [ -n "$JOB" ]; then
               STATUS=$(echo "$JOB" | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
               echo "status=$STATUS"
@@ -314,7 +347,7 @@
           done
           [ "$STATUS" = "successful" ] || { echo "Timed out waiting for job"; exit 1; }
           JOB_ID=$(echo "$JOB" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
-          curl -sk -u "$CTRL_AUTH" "$CTRL_API/jobs/$JOB_ID/stdout/?format=txt" | tail -60
+          curl -sk -u "$AUTH" "$CTRL_API/jobs/$JOB_ID/stdout/?format=txt" | tail -60
           REMOTE_EOF
       timeout: 900
       register: _remediation_result
