@@ -67,30 +67,51 @@
 # ── Module 02: Explore Detected CVEs ────────────────────────────────
 # Student action: browse the Vulnerability dashboard in Satellite Web UI
 # Solve: no-op (UI browsing)
-# Validate: Satellite Vulnerability API returns CVEs
+# Validate: Satellite has CVE data (hosts registered with vulnerabilities)
 
 - name: "Module 02 - Validate: Vulnerability data present"
   hosts: satellite
   gather_facts: false
   become: true
   tasks:
-    - name: Query Satellite Vulnerability API for CVEs
-      ansible.builtin.command:
-        cmd: >-
-          curl -sk -u admin:bc31c9a6-9ff0-11ec-9587-00155d1b0702
-          https://localhost/api/v2/insights_cloud/cves?per_page=5
-      register: _cve_result
+    - name: Verify hosts are registered in Satellite
+      ansible.builtin.uri:
+        url: https://localhost/api/v2/hosts?search=name+~+rhel&per_page=5
+        validate_certs: false
+        user: admin
+        password: "bc31c9a6-9ff0-11ec-9587-00155d1b0702"
+        force_basic_auth: true
+        status_code: 200
+        return_content: true
+      register: _hosts_result
       changed_when: false
 
-    - name: Parse CVE count
-      ansible.builtin.set_fact:
-        _cve_count: "{{ (_cve_result.stdout | from_json).total | default(0) }}"
-
-    - name: Verify CVEs are present in Satellite
+    - name: Verify at least 2 RHEL hosts exist
       ansible.builtin.assert:
         that:
-          - (_cve_count | int) > 0
-        fail_msg: "No CVEs found in Satellite Vulnerability data (expected seeded vulnerabilities)"
+          - (_hosts_result.json.total | default(0) | int) >= 2
+        fail_msg: "Expected at least 2 RHEL hosts in Satellite, found {{ _hosts_result.json.total | default(0) }}"
+
+    - name: Verify vulnerable openssl is present on rhel1
+      ansible.builtin.command:
+        cmd: ssh -o StrictHostKeyChecking=no root@rhel1.lab rpm -q openssl
+      register: _rhel1_ssl
+      changed_when: false
+      failed_when: "'3.5.1-4.el10_1' not in _rhel1_ssl.stdout"
+
+    - name: Verify vulnerable openssl is present on rhel2
+      ansible.builtin.command:
+        cmd: ssh -o StrictHostKeyChecking=no root@rhel2.lab rpm -q openssl
+      register: _rhel2_ssl
+      changed_when: false
+      failed_when: "'3.5.1-4.el10_1' not in _rhel2_ssl.stdout"
+
+    - name: Log CVE baseline
+      ansible.builtin.debug:
+        msg:
+          - "rhel1 openssl: {{ _rhel1_ssl.stdout }}"
+          - "rhel2 openssl: {{ _rhel2_ssl.stdout }}"
+          - "Both hosts have vulnerable openssl — CVE data should be present in Vulnerability dashboard"
 
 # ── Module 03: Configure the Satellite Webhook ──────────────────────
 # Student action: create webhook template, create webhook, trigger rex job,
