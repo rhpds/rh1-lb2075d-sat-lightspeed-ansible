@@ -358,14 +358,20 @@
 
     - name: Run insights-client on rhel1
       ansible.builtin.command:
-        cmd: ssh -o StrictHostKeyChecking=no root@rhel1.lab insights-client
+        cmd: >-
+          ssh -o StrictHostKeyChecking=no root@rhel1.lab
+          'if [ -f /etc/insights-client/.registered ]; then insights-client;
+          else insights-client --register; fi'
       timeout: 180
       register: _insights_rhel1
       changed_when: "'Successfully uploaded' in _insights_rhel1.stdout"
 
     - name: Run insights-client on rhel2
       ansible.builtin.command:
-        cmd: ssh -o StrictHostKeyChecking=no root@rhel2.lab insights-client
+        cmd: >-
+          ssh -o StrictHostKeyChecking=no root@rhel2.lab
+          'if [ -f /etc/insights-client/.registered ]; then insights-client;
+          else insights-client --register; fi'
       timeout: 180
       register: _insights_rhel2
       changed_when: "'Successfully uploaded' in _insights_rhel2.stdout"
@@ -416,7 +422,9 @@
         cmd: ssh -o StrictHostKeyChecking=no root@rhel1.lab insights-client --status
       register: _rhel1_insights
       changed_when: false
-      failed_when: "'registered' not in _rhel1_insights.stdout | lower"
+      failed_when: >-
+        _rhel1_insights.rc != 0 or
+        'insights api confirms registration' not in _rhel1_insights.stdout | lower
       timeout: 30
 
     - name: Verify rhel2 is registered with insights
@@ -424,5 +432,7 @@
         cmd: ssh -o StrictHostKeyChecking=no root@rhel2.lab insights-client --status
       register: _rhel2_insights
       changed_when: false
-      failed_when: "'registered' not in _rhel2_insights.stdout | lower"
+      failed_when: >-
+        _rhel2_insights.rc != 0 or
+        'insights api confirms registration' not in _rhel2_insights.stdout | lower
       timeout: 30
