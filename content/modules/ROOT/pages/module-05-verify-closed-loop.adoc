@@ -3,8 +3,8 @@
 == Verify the Closed Loop
 
 Module 4 wired everything together. A successful Satellite webhook now
-launches an AAP Job Template that finds and remediates CVEs rated
-Critical or Important across *every* affected host, with zero manual
+launches an AAP Job Template that finds and remediates the lab's seeded
+Critical/Important CVE across *every* affected host, with zero manual
 intervention. This module proves it. Triggering the pipeline for real,
 with a job on `rhel1.lab`, fixes the vulnerable packages automatically
 on *both* `rhel1.lab` and `rhel2.lab`, even though only one host fired
@@ -90,17 +90,20 @@ alone. Recall from Module 4 that remediation is deliberately scoped to
 |===
 
 Only the two OpenSSL packages move. Updates for `gnutls` and `tar` are
-sitting in Satellite as well, but their errata are *Moderate*. That is
-below the Critical/Important threshold this lab enforces, so the
-automation deliberately leaves them where they are. That is the policy
-doing its job, not a gap in the remediation.
+sitting in Satellite as well, but this run is scoped to the seeded
+`CVE-2025-15467`, and their errata are *Moderate*: below the
+Critical/Important threshold and outside the scoped CVE set. The
+automation therefore deliberately leaves them where they are. That is
+the policy doing its job, not a gap in the remediation.
 
 Satellite's own Vulnerability dashboard corroborates this. Under
-*Red Hat Lightspeed -> Vulnerability*, both hosts show up as affected by
-an OpenSSL flaw rated *Important* (`CVE-2025-15467`, CVSS 9.8), with
-*Systems Affected = 2*. That is one of the CVEs closed by
-RHSA-2026:1472, the erratum in the table above. It is exactly the kind
-of Critical or Important CVE this lab auto-remediates:
+*Red Hat Lightspeed -> Vulnerability*, find the OpenSSL flaw rated
+*Important* (`CVE-2025-15467`, CVSS 9.8): both hosts show up as affected,
+with *Systems Affected = 2*. That is one of the CVEs closed by
+RHSA-2026:1472, the erratum in the table above, and it is the CVE this
+lab's remediation run is scoped to. The dashboard also lists other CVEs
+from the environment's older packages; those are outside this run's scope
+and are expected to remain:
 
 .Vulnerability dashboard before remediation, showing one Important CVE affecting both hosts
 image::vulnerabilities-before-remediation.png[Vulnerability dashboard showing one Important-severity CVE affecting two systems]
@@ -151,7 +154,7 @@ in Module 4 launches it automatically:
 export CTRL_API="https://localhost/api/controller/v2"
 export CTRL_AUTH="admin:bc31c9a6-9ff0-11ec-9587-00155d1b0702"
 
-for i in $(seq 1 30); do
+for i in $(seq 1 60); do
   JOB=$(curl -sk -u "$CTRL_AUTH" "$CTRL_API/jobs/?job_template__name=Vulnerability%20Package%20Finder%20and%20Remediator&order_by=-id&page_size=1" \
     | python3 -c "import sys,json; r=json.load(sys.stdin)['results']; print(json.dumps(r[0]) if r else '')")
   if [ -n "$JOB" ]; then
@@ -160,7 +163,7 @@ for i in $(seq 1 30); do
     [ "$STATUS" = "successful" ] && break
     [ "$STATUS" = "failed" ] && { echo "$JOB" | python3 -m json.tool; break; }
   fi
-  sleep 3
+  sleep 5
 done
 JOB_ID=$(echo "$JOB" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
 curl -sk -u "$CTRL_AUTH" "$CTRL_API/jobs/$JOB_ID/stdout/?format=txt" | tail -60
@@ -249,10 +252,11 @@ unchanged from Step 1 (`3.8.10-2.el10` and `1.35-7.el10` on
 OpenSSL versions that changed on *both* hosts confirm the entire loop is
 closed. Satellite fired a webhook for a job on `rhel1.lab` only. EDA
 validated and routed it. AAP launched a single job that found the
-applicable Critical and Important CVEs across the fleet via Red Hat
-Lightspeed. Ansible then installed the exact packages needed to fix them
-on *every* affected host, including `rhel2.lab`, which never fired a
-webhook of its own. None of it required manual intervention.
+applicable remediation for the seeded Critical/Important CVE across the
+fleet via Red Hat Lightspeed. Ansible then installed the exact packages
+needed to fix it on *every* affected host, including `rhel2.lab`, which
+never fired a webhook of its own. None of it required manual
+intervention.
 
 Satellite's Vulnerability dashboard will not agree yet. The two views
 read from different places. `rpm -q` queries the local RPM database on
@@ -297,12 +301,16 @@ Now reload the *Red Hat Lightspeed -> Vulnerability* dashboard.
 .Reload the Vulnerability dashboard
 image::reload-button.png[]
 
-The CVE that was rated Important from Step 1 is gone. *CVEs with critical severity* and
-*CVEs with important severity* both read *0*, and the OpenSSL CVE that
-previously affected two systems no longer appears in the list.
+The CVE that was rated Important from Step 1 is gone. `CVE-2025-15467`
+no longer appears in the list, and the OpenSSL row that previously showed
+*Systems Affected = 2* has cleared. The dashboard's overall Critical and
+Important counters can still be non-zero, because the environment carries
+CVEs outside the scope of this run. What matters for the closed loop is
+that the specific CVE the pipeline remediated has been re-evaluated and
+cleared on both hosts.
 
-.Vulnerability dashboard after remediation, with no Critical or Important CVEs remaining
-image::vulnerabilities-after-remediation.png[Vulnerability dashboard showing zero Critical and zero Important CVEs after remediation]
+.Vulnerability dashboard after remediation, with the remediated OpenSSL CVE cleared
+image::vulnerabilities-after-remediation.png[Vulnerability dashboard after remediation with the OpenSSL CVE cleared]
 
 [NOTE]
 ====

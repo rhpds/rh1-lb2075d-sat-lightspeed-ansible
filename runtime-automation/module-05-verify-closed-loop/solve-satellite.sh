@@ -39,7 +39,7 @@ export CTRL_API="https://localhost/api/controller/v2"
 export CTRL_AUTH="admin:bc31c9a6-9ff0-11ec-9587-00155d1b0702"
 
 JOB=""
-for i in $(seq 1 30); do
+for i in $(seq 1 60); do
   JOB=$(curl -sk -u "$CTRL_AUTH" "$CTRL_API/jobs/?job_template__name=Vulnerability%20Package%20Finder%20and%20Remediator&order_by=-id&page_size=1" \
     | python3 -c "import sys,json; r=json.load(sys.stdin)['results']; print(json.dumps(r[0]) if r else '')")
   if [ -n "$JOB" ]; then
@@ -48,7 +48,7 @@ for i in $(seq 1 30); do
     [ "$STATUS" = "successful" ] && break
     [ "$STATUS" = "failed" ] && { echo "$JOB" | python3 -m json.tool; break; }
   fi
-  sleep 3
+  sleep 5
 done
 JOB_ID=$(echo "$JOB" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
 curl -sk -u "$CTRL_AUTH" "$CTRL_API/jobs/$JOB_ID/stdout/?format=txt" | tail -60
