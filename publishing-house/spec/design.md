@@ -79,6 +79,6 @@ This is a Zero-Touch Guided lab. Each module ends with a visible, verifiable res
 - Module 2: Participants observe CVE listings with severity ratings in the Lightspeed Vulnerability dashboard
 - Module 3: Participants run `verify-webhook.yml` which confirms the Event Stream received the webhook event (`events_received` counter and timestamp visible in playbook output)
 - Module 4: All playbooks exit cleanly; EDA Activation log shows the Job Template launched
-- Module 5: `rpm -q openssl openssl-libs` on both hosts shows the patched version (`3.5.1-7.el10_1`); the Vulnerability dashboard shows zero Critical/Important CVEs after `insights-client` runs on both hosts
+- Module 5: `rpm -q openssl openssl-libs` on both hosts shows the patched version (`3.5.1-7.el10_1`); the Vulnerability dashboard shows the seeded OpenSSL CVE cleared after `insights-client` runs on both hosts (CVEs outside the run's seeded scope remain, by design)
 
 Verification is learner-driven via explicit commands and UI checks documented in each module. There are no automated solve/validate buttons.

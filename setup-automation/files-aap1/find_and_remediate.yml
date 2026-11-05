@@ -3,6 +3,16 @@
   hosts: localhost
   connection: local
   gather_facts: false
+  vars:
+    # This lab's remediation run is deliberately scoped to the CVEs the
+    # lab seeds on the managed hosts. Without this allowlist, any host
+    # that is behind on content lights up with 100+ Critical/Important
+    # CVEs, and the install play becomes a ~1500-package, ~an-hour run
+    # instead of the two openssl packages this lab demonstrates. In a
+    # production policy you would drop this var (or replace it with a
+    # real allowlist) to remediate every Critical/Important finding.
+    lab_scoped_cves:
+      - CVE-2025-15467
   tasks:
     # A remote-execution success on ANY single host triggers this job, but
     # we deliberately remediate EVERY affected host, not just the one that
@@ -18,6 +28,7 @@
           python3 vulnerability_remediation.py
           --satellite https://satellite.lab
           --username {{ satellite_username }}
+          {% for cve in lab_scoped_cves %}--cve {{ cve }} {% endfor %}
           --insecure
         chdir: "{{ playbook_dir }}"
       register: scan_all
@@ -46,6 +57,7 @@
           --satellite https://satellite.lab
           --username {{ satellite_username }}
           --host {{ item }}
+          {% for cve in lab_scoped_cves %}--cve {{ cve }} {% endfor %}
           --insecure
         chdir: "{{ playbook_dir }}"
       loop: "{{ target_hosts }}"

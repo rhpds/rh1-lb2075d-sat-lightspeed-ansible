@@ -86,8 +86,19 @@ ssh root@rhel1.lab "dnf downgrade -y gnutls 2>/dev/null || true"
 ssh root@rhel1.lab "dnf install -y tar-1.35-8.el10_1 --allowerasing 2>/dev/null || dnf downgrade -y tar 2>/dev/null || true"
 
 # upload insights data
-ssh root@rhel1.lab "insights-client"
-ssh root@rhel2.lab "insights-client"
+# The first upload from a host must use --register. A plain `insights-client`
+# on a host that has never uploaded gets a 404 from the Insights API, writes
+# /etc/insights-client/.unregistered, and exits 101 - which also breaks the
+# Module 5 closed-loop demo, since later plain runs stay blocked.
+for _h in rhel1.lab rhel2.lab; do
+  ssh root@$_h 'if [ -f /etc/insights-client/.registered ]; then
+                  insights-client
+                else
+                  insights-client --register
+                fi' \
+    || echo "==> SETUP-SATELLITE: WARNING - insights upload failed on $_h" >&2
+done
+unset _h
 
 # Pre-populate the two playbooks Module 3 (Steps 1 and 2) walks the
 # participant through running, the same way setup-aap1.sh does for

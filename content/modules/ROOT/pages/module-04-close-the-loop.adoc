@@ -34,13 +34,18 @@ question each:
 
 [NOTE]
 ====
-By default the script reports only CVEs rated Critical or Important
-(`DEFAULT_SEVERITIES = ["Critical", "Important"]`), and the remediation
-playbook runs it with that default. This lab's automated remediation
-policy is therefore scoped to Critical and Important CVEs. CVEs rated
-Moderate, Low, or None are surfaced in the Module 2 dashboard but are
-not auto-remediated. Widening the policy means passing additional
-`--severity` values to the script in `find_and_remediate.yml`.
+The script defaults to reporting only CVEs rated Critical or Important
+(`DEFAULT_SEVERITIES = ["Critical", "Important"]`). On a fleet that is
+behind on content, that can be dozens of CVEs and hundreds of packages.
+To keep this lab fast and deterministic, `find_and_remediate.yml` also
+passes `--cve` for the CVEs the lab deliberately seeds (the
+`lab_scoped_cves` variable at the top of the playbook). This lab's
+automated remediation run is therefore scoped to those seeded
+Critical/Important CVEs. CVEs rated Moderate, Low, or None - and any
+Critical/Important CVEs outside the seeded set - are surfaced in the
+Module 2 dashboard but are not auto-remediated here. Dropping
+`lab_scoped_cves` (or widening `--severity`) is how a production policy
+would cover every finding.
 ====
 
 When scoped to a single host (`--host <hostname>`), the script narrows

@@ -42,8 +42,11 @@
     satellite_admin_password: bc31c9a6-9ff0-11ec-9587-00155d1b0702
     aap_admin_password: bc31c9a6-9ff0-11ec-9587-00155d1b0702
     satellite_api: https://satellite.lab/api
-    # Reached over the SSH hop to aap1, so this is aap1's own localhost.
-    eda_api: https://localhost/api/eda/v1
+    # Reached from satellite over aap1's own route, not through delegate_to:
+    # the controller's ansible-core 2.14 passes cert_file=/key_file= to
+    # http.client.HTTPSConnection, which Python 3.12 (aap1) no longer
+    # accepts. Querying directly keeps the module on satellite's Python 3.9.
+    eda_api: https://aap1.lab/api/eda/v1
     event_stream_name: Satellite Remote Execution Webhook
     template_name: Satellite Remote Execution Host Job JSON
     webhook_name: AAP Event Driven Ansible Webhook
@@ -71,7 +74,6 @@
       ansible.builtin.uri:
         url: "{{ eda_api }}/event-streams/?name={{ event_stream_name | urlencode }}"
         url_password: "{{ aap_admin_password }}"
-      delegate_to: aap1
       register: r_stream
 
     - name: Keep it
